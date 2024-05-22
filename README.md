@@ -2,9 +2,8 @@
 
 Automatic treatment effect estimation on ecological data with partial labelling.
 
-## Dataset description
-
-### Data structure
+## Dataset 
+Preliminary release at [google drive](https://drive.google.com/drive/folders/1ZTPusp-u3pAtrs2LtA3JUaFXbuqDS7K_?usp=sharing)
 
 ### Example
 
