@@ -1,4 +1,4 @@
-# ISTAnt
+# [anonymized]Ant
 
 Automatic treatment effect estimation on ecological data with partial labelling.
 
@@ -21,10 +21,9 @@ Automatic treatment effect estimation on ecological data with partial labelling.
 
 ### Data Distribution
 
-![Outcome distribution](results/instant_lq/outcome_distribution.png)
+![Outcome distribution](img/outcome_distribution.png)
 
 ### Research Question
 
 Identify and estimate:
-$$ATE_{B} := \mathbb{E}[Y|do(T=1)]- \mathbb{E}[Y|do(T=0)]$$
-$$ATE_{INF} := \mathbb{E}[Y|do(T=2)]- \mathbb{E}[Y|do(T=0)]$$
+$$ATE := \mathbb{E}[Y|do(T=2)]- \mathbb{E}[Y|do(T=1)]$$
