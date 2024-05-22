@@ -7,8 +7,8 @@ from utils import get_time_string
 
 def get_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data_dir", type=str, default="./data/istant_hq", help="Path to the data directory")
-    parser.add_argument("--results_dir", type=str, default="./results/istant_hq", help="Path to the results directory")
+    parser.add_argument("--data_dir", type=str, default="./data/...", help="Path to the data directory")
+    parser.add_argument("--results_dir", type=str, default="./results/...", help="Path to the results directory")
     parser.add_argument("--batch_size", type=int, default=256, help="Batch size")
     parser.add_argument("--hidden_nodes", type=int, default=256, help="Number of nodes per hidden layer")
     parser.add_argument("--num_epochs", type=int, default=10, help="Number of epochs")

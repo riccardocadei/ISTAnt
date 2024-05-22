@@ -14,7 +14,7 @@ from utils import get_metric, set_seed, check_folder
 from causal import compute_ate
 
 class PPCI():
-    def __init__(self, task="all", encoder="dino", token="class", split_criteria="experiment", reduce_fps_factor=15, downscale_factor=1, batch_size=100, num_proc=4, environment="all", generate=False, data_dir="./data/istant_lq", results_dir="./results/istant_lq", verbose=False):
+    def __init__(self, task="all", encoder="dino", token="class", split_criteria="experiment", reduce_fps_factor=15, downscale_factor=1, batch_size=100, num_proc=4, environment="all", generate=False, data_dir="./data/...", results_dir="./results/...", verbose=False):
         # TODO: fix generate option
         if environment in ["all", "supervised"]:
             self.supervised = load_env("supervised", 

@@ -17,7 +17,6 @@
 source ./venv/bin/activate
 srun python ./src/run_data.py
 
-
 ## sbatch encoder.sh
 
 ## source ./venv/bin/activate
