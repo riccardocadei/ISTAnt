@@ -1,6 +1,7 @@
 import torch
 import pandas as pd
 import numpy as np
+import numpy as np
 import random
 import matplotlib.pyplot as plt
 import cv2
@@ -8,6 +9,7 @@ import os
 
 from datasets import Dataset
 from model import get_embeddings, MLP
+from train import train_, train_md
 from train import train_, train_md
 from visualize import plot_outcome_distribution
 from utils import get_metric, set_seed, check_folder
@@ -52,38 +54,43 @@ class PPCI():
         self.results_dir = results_dir
         if verbose: print("Prediction-Powered Causal Inference dataset successfully loaded.")
     
-    def train(self, batch_size=256, num_epochs=10, lr=0.001, hidden_nodes=256, hidden_layers=2, verbose=True, add_pred_env="supervised", seed=0, save=False, force=False, multidomain=False, ic_weight=1):
-        # TODO: check saving options
+    def train(self, batch_size=256, num_epochs=10, lr=0.001, hidden_nodes=256, hidden_layers=2, verbose=True, add_pred_env="supervised", seed=0, save=False, force=False, method="ERM"):
         set_seed(seed)
-        # model_path = os.path.join(self.results_dir, "models", self.encoder, self.token, self.split_criteria, self.task, str(hidden_layers), str(lr), str(seed), "model.pth")
-        # if os.path.exists(model_path) and not force:
-        #     if verbose: print("Model already trained.")
-        #     self.model = MLP(self.supervised["X"].shape[1], hidden_nodes, hidden_layers, task=self.supervised["Y"].task)
-        #     self.model.load_state_dict(torch.load(model_path))
-        #     self.model.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        #     self.model.to(self.model.device)
-        # else:
-        if multidomain:
-            self.model = train_md(self.supervised, 
-                                  batch_size=batch_size, 
-                                  num_epochs=num_epochs, 
-                                  lr=lr, 
-                                  hidden_nodes = hidden_nodes, 
-                                  hidden_layers = hidden_layers,
-                                  verbose=verbose,
-                                  ic_weight=ic_weight)
+        if method=='DERM' and self.task=="all":
+            raise ValueError("DERM method is not available (yet) for task 'all'.")
+        if not method in ["ERM", "vREx", "DERM"]:
+            raise ValueError(f"Method '{method}' not defined. Please select between: 'ERM', 'vREx', 'DERM'.")
+        model_path = os.path.join(self.results_dir, "models", self.encoder, self.token, self.split_criteria, self.task, str(hidden_layers), str(lr), str(seed), f"{method}.pth")
+        if os.path.exists(model_path) and not force:
+            if verbose: print("Model already trained.")
+            self.model = MLP(self.supervised["X"].shape[1], hidden_nodes, hidden_layers, task=self.supervised["Y"].task)
+            self.model.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            #self.model.device = torch.device("cpu")
+            self.model.load_state_dict(torch.load(model_path, map_location=self.model.device))
+            self.model.to(self.model.device)
         else:
-            self.model = train_(self.supervised, 
-                                batch_size=batch_size, 
-                                num_epochs=num_epochs, 
-                                lr=lr, 
-                                hidden_nodes = hidden_nodes, 
-                                hidden_layers = hidden_layers,
-                                verbose=verbose)
-            # if save:
-            #     model_dir = os.path.join(self.results_dir, "models", self.encoder, self.token, self.split_criteria, self.task, str(hidden_layers), str(lr), str(seed))
-            #     check_folder(model_dir)
-            #     torch.save(self.model.state_dict(), os.path.join(model_dir, "model.pth"))
+            if method=="vREx":
+                self.model = train_md(self.supervised, 
+                                    batch_size=batch_size, 
+                                    num_epochs=num_epochs, 
+                                    lr=lr, 
+                                    hidden_nodes = hidden_nodes, 
+                                    hidden_layers = hidden_layers,
+                                    verbose=verbose,
+                                    ic_weight=10)
+            else:
+                self.model = train_(self.supervised, 
+                                    batch_size=batch_size, 
+                                    num_epochs=num_epochs, 
+                                    lr=lr, 
+                                    hidden_nodes = hidden_nodes, 
+                                    hidden_layers = hidden_layers,
+                                    verbose=verbose,
+                                    decondounded = method=="DERM")
+            if save:
+                model_dir = os.path.join(self.results_dir, "models", self.encoder, self.token, self.split_criteria, self.task, str(hidden_layers), str(lr), str(seed))
+                check_folder(model_dir)
+                torch.save(self.model.state_dict(), os.path.join(model_dir, f"{method}.pth"))
         if add_pred_env in ["supervised", "unsupervised"]:
             self.add_pred(add_pred_env)
         elif add_pred_env=="all":
@@ -116,7 +123,6 @@ class PPCI():
             raise ValueError("Train the model first, before computing the inference step.")
     
     def evaluate(self, color="blue", T_control=1, T_treatment=2, verbose=False, subsample_val=False):
-        # TODO: use ratio for subsample_val
         if "Y_hat" in self.supervised:
             if self.task=="all":
                 if color=="yellow":
@@ -141,12 +147,12 @@ class PPCI():
                 idx = random.sample(range(0, (~split).sum()), n_val)
             else:
                 idx = range(0, (~split).sum())
+            #idx = list(range(0, n_val))
             Y_val = Y[~split][idx]
             Y_hat_val = Y_hat[~split][idx]
             T_val = T[~split][idx]
             W_val = W[~split][idx]
             E_val = E[~split][idx]
-            
             # validation
             pos_weight = ((Y[split]==0).sum(dim=0)/(Y[split]==1).sum(dim=0))#.to(device)
             loss_fn = torch.nn.BCELoss(weight=pos_weight)
@@ -311,10 +317,19 @@ def get_outcome(dataset, task="all"):
     y.task = task
     return y
 
-def get_split(dataset, split_criteria="experiment"):
-    # TODO: clean
-    if split_criteria=="experiment":
+def get_split(dataset, split_criteria="random"):
+    if split_criteria=="all":
+        split = (dataset["experiment"] >= 0) # tr_ration: 1
+    elif split_criteria=="treatment0":
+        split = (dataset["treatment"] == 0) # tr_ration: 1/3
+    elif split_criteria=="treatment1":
+        split = (dataset["treatment"] == 1) # tr_ration: 1/3
+    elif split_criteria=="treatment2":
+        split = (dataset["treatment"] == 2) # tr_ration: 1/3
+    elif split_criteria=="experiment0":
         split = (dataset["experiment"] == 0) # tr_ration: 1/5
+    elif split_criteria=="experiment1":
+        split = (dataset["experiment"] == 1) # tr_ration: 1/5
     elif split_criteria=="experiment_easy":
         split = (dataset["experiment"] != 4) # tr_ration: 4/5
     elif split_criteria=="position":
@@ -364,17 +379,17 @@ def load_env(environment='supervised', task="all", encoder="mae", token="class",
     if 'istant' in data_dir:
         exp_id = W[:, -5:] @ np.array([0,1,2,3,4])
         pos_id = W[:, 0] + 1 + 3*(W[:, 1] + 1)
-        E = (exp_id + 5*pos_id).to(torch.int64)
+        E = (9*exp_id + pos_id).to(torch.int64)
     else:
         raise ValueError(f"Unknown 'enviornment' definition for dataset: {data_dir}")
     dataset_dict = {
         "source_data": dataset,
         "X": get_embeddings(dataset, encoder, batch_size=batch_size, num_proc=num_proc, data_dir=data_dir, token=token, verbose=verbose),
         "Y": get_outcome(dataset, task=task),
+        "split": get_split(dataset, split_criteria=split_criteria),
         "W": W, 
         "E": E,
         "T": dataset["treatment"],
-        "split": get_split(dataset, split_criteria=split_criteria),
     }
     if verbose: 
         print("Training Environments: ", np.unique(E[dataset_dict["split"]]))
